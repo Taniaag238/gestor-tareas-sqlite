@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/tarea.dart';
 
-// Pantalla base SIN persistencia ni operaciones CRUD implementadas.
-// Conserva las indicaciones TODO para orientar tu trabajo.
+import '../models/tarea.dart';
+import '../data/app_database.dart';
+
 class TareasPage extends StatefulWidget {
-  const TareasPage({super.key});
+  final AppDatabase database;
+
+  const TareasPage({super.key, required this.database});
 
   @override
   State<TareasPage> createState() => _TareasPageState();
@@ -19,28 +21,78 @@ class _TareasPageState extends State<TareasPage> {
   void initState() {
     super.initState();
 
+    // CONSULTAR LAS TAREAS AL INICIAR LA APLICACION
+    _cargarTareas();
   }
 
-  void _agregarTarea() {
-    _pendiente('Implementar registro de tarea');
+  // RECUPERAR LAS TAREAS ALMACENADAS EN SQLITE
+  Future<void> _cargarTareas() async {
+    try {
+      final tareas = await widget.database.obtenerTareas();
+
+      if (!mounted) return;
+
+      setState(() {
+        _tareas = tareas;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      _pendiente('Error al consultar las tareas: $e');
+    }
   }
 
+  // REGISTRAR UNA NUEVA TAREA
+  Future<void> _agregarTarea() async {
+    final titulo = _tituloController.text.trim();
+
+    // VALIDAR QUE EL TITULO NO ESTE VACIO
+    if (titulo.isEmpty) {
+      _pendiente('El título no puede estar vacío.');
+      return;
+    }
+
+    try {
+      // GUARDAR LA TAREA EN SQLITE
+      await widget.database.insertarTarea(titulo);
+
+      if (!mounted) return;
+
+      // LIMPIAR EL CAMPO DE TEXTO
+      _tituloController.clear();
+
+      // ACTUALIZAR LA LISTA DE TAREAS
+      await _cargarTareas();
+
+      if (!mounted) return;
+
+      _pendiente('Tarea registrada correctamente.');
+    } catch (e) {
+      if (!mounted) return;
+
+      _pendiente('Error al registrar la tarea: $e');
+    }
+  }
+
+  // PENDIENTE: ACTUALIZAR EL ESTADO DE LA TAREA
   void _alternarCompletada(Tarea tarea, bool completada) {
     _pendiente('Implementar actualización de tarea');
   }
 
+  // PENDIENTE: EDITAR EL TITULO DE LA TAREA
   void _editarTarea(Tarea tarea) {
     _pendiente('Implementar edición de título');
   }
 
+  // PENDIENTE: ELIMINAR UNA TAREA
   void _eliminarTarea(Tarea tarea) {
     _pendiente('Implementar eliminación de tarea');
   }
 
+  // MOSTRAR MENSAJES AL USUARIO
   void _pendiente(String mensaje) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override
@@ -81,6 +133,7 @@ class _TareasPageState extends State<TareasPage> {
                       itemCount: _tareas.length,
                       itemBuilder: (context, index) {
                         final tarea = _tareas[index];
+
                         return Card(
                           child: ListTile(
                             leading: Checkbox(
