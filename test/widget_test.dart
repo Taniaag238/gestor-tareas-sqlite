@@ -10,9 +10,6 @@ void main() {
     // CREAR UNA BASE DE DATOS TEMPORAL EN MEMORIA
     final database = AppDatabase.forTesting(NativeDatabase.memory());
 
-    // CERRAR LA BASE DE DATOS AL FINALIZAR LA PRUEBA
-    addTearDown(database.close);
-
     // INICIALIZAR LA APLICACION
     await tester.runAsync(() async {
       await tester.pumpWidget(GestorTareasApp(database: database));
@@ -26,5 +23,10 @@ void main() {
     expect(find.text('Gestor de tareas'), findsOneWidget);
     expect(find.text('Agregar tarea'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
+
+    // DESTRUIR EL WIDGET PARA LIBERAR LA CONEXION
+    await tester.runAsync(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 }

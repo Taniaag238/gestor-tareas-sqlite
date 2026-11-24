@@ -21,24 +21,28 @@ class _TareasPageState extends State<TareasPage> {
   void initState() {
     super.initState();
 
-    // CONSULTAR LAS TAREAS AL INICIAR LA APLICACION
+    // CONSULTAR LAS TAREAS AL INICIAR
     _cargarTareas();
   }
 
-  // READ: RECUPERAR LAS TAREAS ALMACENADAS EN SQLITE
-  Future<void> _cargarTareas() async {
+  // READ: CONSULTAR LAS TAREAS ALMACENADAS
+  Future<bool> _cargarTareas() async {
     try {
       final tareas = await widget.database.obtenerTareas();
 
-      if (!mounted) return;
+      if (!mounted) return false;
 
       setState(() {
         _tareas = tareas;
       });
+
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
 
       _mostrarMensaje('Error al consultar las tareas: $e');
+
+      return false;
     }
   }
 
@@ -46,7 +50,6 @@ class _TareasPageState extends State<TareasPage> {
   Future<void> _agregarTarea() async {
     final titulo = _tituloController.text.trim();
 
-    // VALIDAR QUE EL TITULO NO ESTE VACIO
     if (titulo.isEmpty) {
       _mostrarMensaje('El título no puede estar vacío.');
       return;
@@ -59,9 +62,9 @@ class _TareasPageState extends State<TareasPage> {
 
       _tituloController.clear();
 
-      await _cargarTareas();
+      final actualizado = await _cargarTareas();
 
-      if (!mounted) return;
+      if (!mounted || !actualizado) return;
 
       _mostrarMensaje('Tarea registrada correctamente.');
     } catch (e) {
@@ -74,13 +77,22 @@ class _TareasPageState extends State<TareasPage> {
   // UPDATE: CAMBIAR EL ESTADO DE UNA TAREA
   Future<void> _alternarCompletada(Tarea tarea, bool completada) async {
     try {
-      await widget.database.actualizarEstado(tarea.id, completada);
+      final filas = await widget.database.actualizarEstado(
+        tarea.id,
+        completada,
+      );
 
       if (!mounted) return;
 
-      await _cargarTareas();
+      if (filas == 0) {
+        _mostrarMensaje('No se encontró la tarea.');
+        await _cargarTareas();
+        return;
+      }
 
-      if (!mounted) return;
+      final actualizado = await _cargarTareas();
+
+      if (!mounted || !actualizado) return;
 
       _mostrarMensaje(
         completada
@@ -99,7 +111,6 @@ class _TareasPageState extends State<TareasPage> {
     String nuevoTitulo = tarea.titulo;
     final formKey = GlobalKey<FormState>();
 
-    // MOSTRAR EL DIALOGO DE EDICION
     final titulo = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -146,17 +157,22 @@ class _TareasPageState extends State<TareasPage> {
       },
     );
 
-    // NO MODIFICAR LA TAREA SI SE CANCELO LA EDICION
     if (titulo == null || !mounted) return;
 
     try {
-      await widget.database.actualizarTitulo(tarea.id, titulo);
+      final filas = await widget.database.actualizarTitulo(tarea.id, titulo);
 
       if (!mounted) return;
 
-      await _cargarTareas();
+      if (filas == 0) {
+        _mostrarMensaje('No se encontró la tarea.');
+        await _cargarTareas();
+        return;
+      }
 
-      if (!mounted) return;
+      final actualizado = await _cargarTareas();
+
+      if (!mounted || !actualizado) return;
 
       _mostrarMensaje('Tarea actualizada correctamente.');
     } catch (e) {
@@ -168,7 +184,6 @@ class _TareasPageState extends State<TareasPage> {
 
   // DELETE: ELIMINAR UNA TAREA
   Future<void> _eliminarTarea(Tarea tarea) async {
-    // SOLICITAR CONFIRMACION ANTES DE ELIMINAR
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -193,17 +208,22 @@ class _TareasPageState extends State<TareasPage> {
       },
     );
 
-    // NO ELIMINAR SI EL USUARIO CANCELO
     if (confirmar != true || !mounted) return;
 
     try {
-      await widget.database.eliminarTarea(tarea.id);
+      final filas = await widget.database.eliminarTarea(tarea.id);
 
       if (!mounted) return;
 
-      await _cargarTareas();
+      if (filas == 0) {
+        _mostrarMensaje('No se encontró la tarea.');
+        await _cargarTareas();
+        return;
+      }
 
-      if (!mounted) return;
+      final actualizado = await _cargarTareas();
+
+      if (!mounted || !actualizado) return;
 
       _mostrarMensaje('Tarea eliminada correctamente.');
     } catch (e) {
@@ -216,7 +236,8 @@ class _TareasPageState extends State<TareasPage> {
   // MOSTRAR MENSAJES AL USUARIO
   void _mostrarMensaje(String mensaje) {
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(mensaje)));
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   // LIBERAR LOS RECURSOS DEL CONTROLADOR
