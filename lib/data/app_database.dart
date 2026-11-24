@@ -35,7 +35,7 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
-  // REGISTRAR UNA NUEVA TAREA
+  // CREATE: REGISTRAR UNA NUEVA TAREA
   Future<int> insertarTarea(String titulo) {
     final tituloLimpio = titulo.trim();
 
@@ -47,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
     return into(tareas).insert(TareasCompanion.insert(titulo: tituloLimpio));
   }
 
-  // CONSULTAR LAS TAREAS ALMACENADAS
+  // READ: CONSULTAR LAS TAREAS ALMACENADAS
   Future<List<Tarea>> obtenerTareas() async {
     final registros = await select(tareas).get();
 
@@ -58,5 +58,31 @@ class AppDatabase extends _$AppDatabase {
         completada: registro.completada,
       );
     }).toList();
+  }
+
+  // UPDATE: MODIFICAR EL TITULO DE UNA TAREA
+  Future<int> actualizarTitulo(int id, String titulo) {
+    final tituloLimpio = titulo.trim();
+
+    // VALIDAR QUE EL NUEVO TITULO NO ESTE VACIO
+    if (tituloLimpio.isEmpty) {
+      throw ArgumentError('El título no puede estar vacío.');
+    }
+
+    return (update(tareas)..where((tabla) => tabla.id.equals(id))).write(
+      TareasCompanion(titulo: Value(tituloLimpio)),
+    );
+  }
+
+  // UPDATE: CAMBIAR EL ESTADO DE UNA TAREA
+  Future<int> actualizarEstado(int id, bool completada) {
+    return (update(tareas)..where((tabla) => tabla.id.equals(id))).write(
+      TareasCompanion(completada: Value(completada)),
+    );
+  }
+
+  // DELETE: ELIMINAR UNA TAREA
+  Future<int> eliminarTarea(int id) {
+    return (delete(tareas)..where((tabla) => tabla.id.equals(id))).go();
   }
 }

@@ -25,7 +25,7 @@ class _TareasPageState extends State<TareasPage> {
     _cargarTareas();
   }
 
-  // RECUPERAR LAS TAREAS ALMACENADAS EN SQLITE
+  // READ: RECUPERAR LAS TAREAS ALMACENADAS EN SQLITE
   Future<void> _cargarTareas() async {
     try {
       final tareas = await widget.database.obtenerTareas();
@@ -38,63 +38,188 @@ class _TareasPageState extends State<TareasPage> {
     } catch (e) {
       if (!mounted) return;
 
-      _pendiente('Error al consultar las tareas: $e');
+      _mostrarMensaje('Error al consultar las tareas: $e');
     }
   }
 
-  // REGISTRAR UNA NUEVA TAREA
+  // CREATE: REGISTRAR UNA NUEVA TAREA
   Future<void> _agregarTarea() async {
     final titulo = _tituloController.text.trim();
 
     // VALIDAR QUE EL TITULO NO ESTE VACIO
     if (titulo.isEmpty) {
-      _pendiente('El título no puede estar vacío.');
+      _mostrarMensaje('El título no puede estar vacío.');
       return;
     }
 
     try {
-      // GUARDAR LA TAREA EN SQLITE
       await widget.database.insertarTarea(titulo);
 
       if (!mounted) return;
 
-      // LIMPIAR EL CAMPO DE TEXTO
       _tituloController.clear();
 
-      // ACTUALIZAR LA LISTA DE TAREAS
       await _cargarTareas();
 
       if (!mounted) return;
 
-      _pendiente('Tarea registrada correctamente.');
+      _mostrarMensaje('Tarea registrada correctamente.');
     } catch (e) {
       if (!mounted) return;
 
-      _pendiente('Error al registrar la tarea: $e');
+      _mostrarMensaje('Error al registrar la tarea: $e');
     }
   }
 
-  // PENDIENTE: ACTUALIZAR EL ESTADO DE LA TAREA
-  void _alternarCompletada(Tarea tarea, bool completada) {
-    _pendiente('Implementar actualización de tarea');
+  // UPDATE: CAMBIAR EL ESTADO DE UNA TAREA
+  Future<void> _alternarCompletada(Tarea tarea, bool completada) async {
+    try {
+      await widget.database.actualizarEstado(tarea.id, completada);
+
+      if (!mounted) return;
+
+      await _cargarTareas();
+
+      if (!mounted) return;
+
+      _mostrarMensaje(
+        completada
+            ? 'Tarea marcada como completada.'
+            : 'Tarea marcada como pendiente.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      _mostrarMensaje('Error al actualizar la tarea: $e');
+    }
   }
 
-  // PENDIENTE: EDITAR EL TITULO DE LA TAREA
-  void _editarTarea(Tarea tarea) {
-    _pendiente('Implementar edición de título');
+  // UPDATE: EDITAR EL TITULO DE UNA TAREA
+  Future<void> _editarTarea(Tarea tarea) async {
+    String nuevoTitulo = tarea.titulo;
+    final formKey = GlobalKey<FormState>();
+
+    // MOSTRAR EL DIALOGO DE EDICION
+    final titulo = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Editar tarea'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              initialValue: tarea.titulo,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Título de la tarea',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (valor) {
+                nuevoTitulo = valor;
+              },
+              validator: (valor) {
+                if (valor == null || valor.trim().isEmpty) {
+                  return 'El título no puede estar vacío.';
+                }
+
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(dialogContext, nuevoTitulo.trim());
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // NO MODIFICAR LA TAREA SI SE CANCELO LA EDICION
+    if (titulo == null || !mounted) return;
+
+    try {
+      await widget.database.actualizarTitulo(tarea.id, titulo);
+
+      if (!mounted) return;
+
+      await _cargarTareas();
+
+      if (!mounted) return;
+
+      _mostrarMensaje('Tarea actualizada correctamente.');
+    } catch (e) {
+      if (!mounted) return;
+
+      _mostrarMensaje('Error al editar la tarea: $e');
+    }
   }
 
-  // PENDIENTE: ELIMINAR UNA TAREA
-  void _eliminarTarea(Tarea tarea) {
-    _pendiente('Implementar eliminación de tarea');
+  // DELETE: ELIMINAR UNA TAREA
+  Future<void> _eliminarTarea(Tarea tarea) async {
+    // SOLICITAR CONFIRMACION ANTES DE ELIMINAR
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar tarea'),
+          content: Text('¿Deseas eliminar la tarea "${tarea.titulo}"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // NO ELIMINAR SI EL USUARIO CANCELO
+    if (confirmar != true || !mounted) return;
+
+    try {
+      await widget.database.eliminarTarea(tarea.id);
+
+      if (!mounted) return;
+
+      await _cargarTareas();
+
+      if (!mounted) return;
+
+      _mostrarMensaje('Tarea eliminada correctamente.');
+    } catch (e) {
+      if (!mounted) return;
+
+      _mostrarMensaje('Error al eliminar la tarea: $e');
+    }
   }
 
   // MOSTRAR MENSAJES AL USUARIO
-  void _pendiente(String mensaje) {
+  void _mostrarMensaje(String mensaje) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
+  // LIBERAR LOS RECURSOS DEL CONTROLADOR
   @override
   void dispose() {
     _tituloController.dispose();
@@ -144,8 +269,18 @@ class _TareasPageState extends State<TareasPage> {
                                 }
                               },
                             ),
-                            title: Text(tarea.titulo),
-                            subtitle: Text('ID: ${tarea.id}'),
+                            title: Text(
+                              tarea.titulo,
+                              style: TextStyle(
+                                decoration: tarea.completada
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'ID: ${tarea.id} - '
+                              '${tarea.completada ? "Completada" : "Pendiente"}',
+                            ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
